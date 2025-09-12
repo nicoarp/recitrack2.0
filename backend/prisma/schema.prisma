@@ -1,0 +1,323 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ORGANIZACIONES Y FACILITIES ====================
+
+model Organization {
+  id         String   @id @default(uuid())
+  name       String
+  type       OrgType
+  rut        String   @unique
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  facilities Facility[]
+  users      User[]
+
+  @@index([type])
+  @@map("organizations")
+}
+
+model Facility {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  address        String
+  latitude       Float?
+  longitude      Float?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  users             User[]
+  batches           Batch[]
+  collectionPoints  CollectionPoint[]
+
+  @@index([organizationId])
+  @@map("facilities")
+}
+
+// ==================== USUARIOS Y AUTENTICACIÓN ====================
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  password       String
+  role           UserRole
+  firstName      String    @map("first_name")
+  lastName       String    @map("last_name")
+  rut            String?   @unique
+  phone          String?
+  active         Boolean   @default(true)
+  emailVerified  Boolean   @default(false) @map("email_verified")
+  organizationId String?   @map("organization_id")
+  facilityId     String?   @map("facility_id")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  facility     Facility?     @relation(fields: [facilityId], references: [id])
+  
+  // Actions tracking
+  depositsCreated    Deposit[]          @relation("collector")
+  validations        Validation[]
+  batchesCreated     Batch[]            @relation("created_by")
+  batchItemsAdded    BatchItem[]        @relation("added_by")
+  auditLogs          AuditLog[]
+
+  @@index([email])
+  @@index([role])
+  @@index([organizationId])
+  @@map("users")
+}
+
+// ==================== PUNTOS DE RECICLAJE Y QR CODES ====================
+
+model CollectionPoint {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  address     String
+  latitude    Float
+  longitude   Float
+  facilityId  String   @map("facility_id")
+  qrCodeId    String   @unique @map("qr_code_id")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  facility Facility @relation(fields: [facilityId], references: [id])
+  qrCode   QrCode   @relation(fields: [qrCodeId], references: [id])
+  deposits Deposit[]
+
+  @@index([facilityId])
+  @@index([active])
+  @@map("collection_points")
+}
+
+model QrCode {
+  id        String      @id @default(uuid())
+  type      QrType
+  status    QrStatus    @default(AVAILABLE)
+  claimedAt DateTime?   @map("claimed_at")
+  usedAt    DateTime?   @map("used_at")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relations
+  collectionPoint CollectionPoint?
+  deposit         Deposit?
+
+  @@index([type, status])
+  @@map("qr_codes")
+}
+
+// ==================== DEPOSITOS Y VALIDACIONES ====================
+
+model Deposit {
+  id                String    @id @default(uuid())
+  qrCodeId          String    @unique @map("qr_code_id")
+  collectorId       String    @map("collector_id")
+  collectionPointId String?   @map("collection_point_id")
+  materialType      Material  @map("material_type")
+  estimatedWeight   Decimal   @map("estimated_weight") @db.Decimal(10, 2)
+  photos            String[]  // Array de URLs
+  status            DepositStatus @default(CREATED)
+  observations      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  qrCode          QrCode           @relation(fields: [qrCodeId], references: [id])
+  collector       User             @relation("collector", fields: [collectorId], references: [id])
+  collectionPoint CollectionPoint? @relation(fields: [collectionPointId], references: [id])
+  validation      Validation?
+  batchItem       BatchItem?
+
+  @@index([status])
+  @@index([materialType])
+  @@index([collectorId])
+  @@index([createdAt])
+  @@map("deposits")
+}
+
+model Validation {
+  id                String   @id @default(uuid())
+  depositId         String   @unique @map("deposit_id")
+  validatedBy       String   @map("validated_by")
+  originalMaterial  Material @map("original_material")
+  correctedMaterial Material? @map("corrected_material")
+  observations      String?
+  validatedAt       DateTime @default(now()) @map("validated_at")
+
+  // Relations
+  deposit    Deposit @relation(fields: [depositId], references: [id])
+  validator  User    @relation(fields: [validatedBy], references: [id])
+
+  @@index([validatedBy])
+  @@index([validatedAt])
+  @@map("validations")
+}
+
+// ==================== LOTES Y PROCESAMIENTO ====================
+
+model Batch {
+  id           String      @id @default(uuid())
+  facilityId   String      @map("facility_id")
+  materialType Material    @map("material_type")
+  status       BatchStatus @default(OPEN)
+  grossWeight  Decimal?    @map("gross_weight") @db.Decimal(10, 2)
+  tareWeight   Decimal?    @map("tare_weight") @db.Decimal(10, 2)
+  netWeight    Decimal?    @map("net_weight") @db.Decimal(10, 2)
+  createdBy    String      @map("created_by")
+  closedAt     DateTime?   @map("closed_at")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Blockchain
+  blockchainTx     String?   @map("blockchain_tx")
+  blockchainStatus BlockchainStatus @default(PENDING)
+  blockchainError  String?   @map("blockchain_error")
+
+  // Relations
+  facility    Facility      @relation(fields: [facilityId], references: [id])
+  creator     User          @relation("created_by", fields: [createdBy], references: [id])
+  items       BatchItem[]
+  certificate Certificate?
+
+  @@index([status])
+  @@index([materialType])
+  @@index([facilityId])
+  @@index([createdAt])
+  @@map("batches")
+}
+
+model BatchItem {
+  id        String   @id @default(uuid())
+  batchId   String   @map("batch_id")
+  depositId String   @unique @map("deposit_id") // UNIQUE garantiza 1 deposito = 1 lote
+  addedBy   String   @map("added_by")
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  // Relations
+  batch   Batch   @relation(fields: [batchId], references: [id])
+  deposit Deposit @relation(fields: [depositId], references: [id])
+  adder   User    @relation("added_by", fields: [addedBy], references: [id])
+
+  @@index([batchId])
+  @@map("batch_items")
+}
+
+// ==================== CERTIFICADOS Y REPORTES ====================
+
+model Certificate {
+  id           String   @id @default(uuid())
+  batchId      String   @unique @map("batch_id")
+  certificateNumber String @unique @map("certificate_number")
+  pdfUrl       String   @map("pdf_url")
+  metadata     Json     // Datos del certificado
+  createdAt    DateTime @default(now())
+
+  // Relations
+  batch Batch @relation(fields: [batchId], references: [id])
+
+  @@index([certificateNumber])
+  @@map("certificates")
+}
+
+// ==================== AUDITORIA Y LOGS ====================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  changes    Json?    // Cambios realizados
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ==================== ENUMS ====================
+
+enum OrgType {
+  COLLECTION_CENTER
+  TRANSFORMER_COMPANY
+}
+
+enum UserRole {
+  COLLECTOR
+  OPERATOR
+  ADMIN
+  COMPANY
+}
+
+enum QrType {
+  DEPOSIT
+  COLLECTION_POINT
+}
+
+enum QrStatus {
+  AVAILABLE
+  CLAIMED
+  USED
+}
+
+enum Material {
+  PET
+  HDPE
+  PP
+  LDPE
+  PS
+  PVC
+  CARTON
+  GLASS
+  ALUMINUM
+  STEEL
+  COPPER
+  OTHER_METAL
+}
+
+enum DepositStatus {
+  CREATED
+  VALIDATED
+  BATCHED
+}
+
+enum BatchStatus {
+  OPEN
+  WEIGHED
+  CLOSED
+}
+
+enum BlockchainStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  FAILED
+}
