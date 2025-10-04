@@ -11,4 +11,9 @@ export class QrCodesController {
   async resolveQr(@Body('qrCode') qrCode: string) {
     return this.qrCodesService.resolveQr(qrCode);
   }
+
+  @Post('generate-deposit')
+  async generateDepositQr() {
+    return this.qrCodesService.createDepositQr();
+  }
 }

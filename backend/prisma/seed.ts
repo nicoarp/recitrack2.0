@@ -4,78 +4,132 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Crear organización (Centro de Acopio)
-  const org = await prisma.organization.create({
-    data: {
-      name: 'Centro de Acopio Norte',
-      type: 'COLLECTION_CENTER',
-      rut: '76.123.456-7',
-    },
-  });
+  const hashedPassword = await bcrypt.hash('password123', 10);
 
-  // Crear facility
-  const facility = await prisma.facility.create({
-    data: {
-      organizationId: org.id,
-      name: 'Facility Principal',
-      address: 'Av. Principal 123, Santiago',
-      latitude: -33.4372,
-      longitude: -70.6506,
-    },
-  });
+  // Obtener la organización y facility existentes
+  const org = await prisma.organization.findFirst();
+  const facility = await prisma.facility.findFirst();
 
-  // Crear operador
-  const hashedPassword = await bcrypt.hash('123456', 10);
-  const operator = await prisma.user.create({
-    data: {
-      email: 'operador@test.com',
+  if (!org || !facility) {
+    console.log('❌ Primero ejecuta el seed principal');
+    return;
+  }
+
+  // Crear usuarios con diferentes roles
+  const users = [
+    {
+      email: 'maria@example.com',
+      password: hashedPassword,
+      firstName: 'María',
+      lastName: 'González',
+      role: 'COLLECTOR' as const,
+      rut: '12345678-9',
+    },
+    {
+      email: 'pedro@example.com',
+      password: hashedPassword,
+      firstName: 'Pedro',
+      lastName: 'Recolector',
+      role: 'COLLECTOR' as const,
+      rut: '98765432-1',
+    },
+    {
+      email: 'juan@example.com',
       password: hashedPassword,
       firstName: 'Juan',
-      lastName: 'Operador',
-      role: 'OPERATOR',
+      lastName: 'Pérez',
+      role: 'OPERATOR' as const,
       organizationId: org.id,
       facilityId: facility.id,
     },
-  });
-
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@test.com',
-      password: hashedPassword, // usa la misma: 123456
-      firstName: 'Admin',
-      lastName: 'Sistema',
-      role: 'ADMIN',
-    },
-  });
-
-  // Crear punto de reciclaje
-  const pointQr = await prisma.qrCode.create({
-    data: {
-      type: 'COLLECTION_POINT',
-      status: 'USED',
-    },
-  });
-
-  const collectionPoint = await prisma.collectionPoint.create({
-    data: {
-      name: 'Punto Verde Plaza Italia',
-      address: 'Plaza Italia, Santiago',
-      latitude: -33.4372,
-      longitude: -70.6506,
+    {
+      email: 'ana@example.com',
+      password: hashedPassword,
+      firstName: 'Ana',
+      lastName: 'Supervisora',
+      role: 'ADMIN' as const,
+      organizationId: org.id,
       facilityId: facility.id,
-      qrCodeId: pointQr.id,
     },
+    {
+      email: 'empresa@example.com',
+      password: hashedPassword,
+      firstName: 'Carlos',
+      lastName: 'Empresario',
+      role: 'COMPANY' as const,
+      rut: '76543210-K',
+    }
+  ];
+
+  // Crear usuarios
+  for (const userData of users) {
+    try {
+      const user = await prisma.user.create({
+        data: userData,
+      });
+      console.log(`✅ Usuario creado: ${user.email} (${user.role})`);
+    } catch (error) {
+      console.log(`⚠️  Usuario ${userData.email} ya existe`);
+    }
+  }
+
+  // Crear algunos QR codes para María
+  const maria = await prisma.user.findUnique({ 
+    where: { email: 'maria@example.com' } 
   });
 
-  console.log('Seed completado:');
-  console.log('- Organización:', org.name);
-  console.log('- Facility:', facility.name);
-  console.log('- Operador: operador@test.com / 123456');
-  console.log('- Punto de reciclaje:', collectionPoint.name);
-  console.log('- QR del punto:', pointQr.id);
-  console.log('- Admin: admin@test.com / 123456');
+  if (maria) {
+    console.log('\n📱 Creando QR codes para María...');
+    
+    for (let i = 1; i <= 5; i++) {
+      const qr = await prisma.qrCode.create({
+        data: {
+          type: 'DEPOSIT',
+          status: 'AVAILABLE',
+        },
+      });
+      console.log(`✅ QR creado: ${qr.id}`);
+    }
+  }
+
+  // Crear punto de recepción directa para la facility
+  const receptionPoint = await prisma.collectionPoint.findFirst({
+    where: { 
+      name: { contains: 'Recepción Directa' }
+    }
+  });
+
+  if (!receptionPoint) {
+    const qr = await prisma.qrCode.create({
+      data: {
+        type: 'COLLECTION_POINT',
+        status: 'USED',
+      },
+    });
+
+    await prisma.collectionPoint.create({
+      data: {
+        name: `Recepción Directa - ${facility.name}`,
+        description: 'Entrega directa de materiales reciclables',
+        address: facility.address || 'Av. Principal 123',
+        latitude: -33.4372,
+        longitude: -70.6506,
+        facilityId: facility.id,
+        qrCodeId: qr.id,
+        active: true,
+      },
+    });
+    console.log('\n✅ Punto de recepción directa creado');
+  }
+
+  console.log('\n👥 Resumen de usuarios:');
+  console.log('- María y Pedro: COLLECTORS (recolectores)');
+  console.log('- Juan: OPERATOR (valida y crea lotes)');
+  console.log('- Ana: ADMIN (supervisión general)');
+  console.log('- Carlos: COMPANY (empresa compradora)');
+  console.log('\nTodos con contraseña: password123');
 }
 
 main()
   .catch(console.error)
-  .finally(() => prisma.$disconnect());
+  .finally(async () => await prisma.$disconnect());

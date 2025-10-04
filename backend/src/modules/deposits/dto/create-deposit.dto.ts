@@ -3,7 +3,8 @@ import { Material } from '@prisma/client';
 
 export class CreateDepositDto {
   @IsUUID()
-  collectionPointId: string;
+  @IsOptional()
+  collectionPointId?: string;
 
   @IsEnum(Material)
   materialType: Material;

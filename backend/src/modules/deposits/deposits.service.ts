@@ -15,7 +15,8 @@ export class DepositsService {
 
   // Crear depósito (María escanea QR del punto)
   async createDeposit(dto: CreateDepositDto, collectorId: string) {
-    // Verificar que el punto de reciclaje existe
+  // Solo verificar si se proporciona collectionPointId
+  if (dto.collectionPointId) {
     const collectionPoint = await this.prisma.collectionPoint.findUnique({
       where: { id: dto.collectionPointId },
     });
@@ -23,7 +24,7 @@ export class DepositsService {
     if (!collectionPoint) {
       throw new NotFoundException('Punto de reciclaje no encontrado');
     }
-
+  }
     // Crear QR para este depósito
     const qr = await this.qrService.createDepositQr();
 
@@ -32,7 +33,7 @@ export class DepositsService {
       data: {
         qrCodeId: qr.id,
         collectorId,
-        collectionPointId: dto.collectionPointId,
+        collectionPointId: dto.collectionPointId || null, 
         materialType: dto.materialType,
         estimatedWeight: dto.estimatedWeight,
         photos: dto.photos,

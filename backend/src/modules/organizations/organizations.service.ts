@@ -1,11 +1,14 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { QrCodesService } from '../qr-codes/qr-codes.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { CreateFacilityDto } from './dto/create-facility.dto';
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService,
+    private qrCodesService: QrCodesService
+  ) {}
 
   // Crear organización
   async createOrganization(dto: CreateOrganizationDto) {
@@ -99,7 +102,7 @@ export class OrganizationsService {
     // Verificar que la organización existe
     await this.findOneOrganization(dto.organizationId);
 
-    return this.prisma.facility.create({
+    const facility = await this.prisma.facility.create({
       data: dto,
       include: {
         organization: true,
@@ -112,7 +115,65 @@ export class OrganizationsService {
         },
       },
     });
+
+    // Crear automáticamente el punto de recepción directa
+    try {
+      await this.createReceptionPointForFacility(facility);
+    } catch (error) {
+      console.error('Error creando punto de recepción:', error);
+      // No fallar la creación de facility si falla el punto
+    }
+
+    return facility;
   }
+
+  // Método privado para crear punto de recepción
+private async createReceptionPointForFacility(facility: any) {
+  // 1. Primero crear el QR
+  const qrCode = await this.prisma.qrCode.create({
+    data: {
+      type: 'COLLECTION_POINT',
+      status: 'USED',
+    },
+  });
+
+  // 2. Crear el punto de recolección con el QR
+  const collectionPoint = await this.prisma.collectionPoint.create({
+    data: {
+      name: `Recepción Directa - ${facility.name}`,
+      description: 'Entrega directa de materiales reciclables en el centro de acopio',
+      address: facility.address,
+      latitude: facility.latitude || -33.4372,
+      longitude: facility.longitude || -70.6506,
+      facilityId: facility.id,
+      qrCodeId: qrCode.id,  // Asignar el QR creado
+      active: true,
+    },
+  });
+
+  // 3. Actualizar el QR con la referencia al punto
+  await this.prisma.qrCode.update({
+    where: { id: qrCode.id },
+    data: {
+      collectionPoint: {
+        connect: { id: collectionPoint.id }
+      }
+    },
+  });
+
+  // 4. Generar la imagen QR
+  const qrImage = await this.qrCodesService.generateQrImage(qrCode.id);
+
+  console.log(`✅ Punto de recepción creado para facility: ${facility.name}`);
+  console.log(`✅ QR generado con ID: ${qrCode.id}`);
+  
+  return {
+    collectionPoint,
+    qr: { ...qrCode, qrImage }
+  };
+}
+
+
 
   // Obtener todas las facilities
   async findAllFacilities(organizationId?: string) {
