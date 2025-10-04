@@ -1,3 +1,4 @@
+// src/app/layout.tsx
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -10,14 +11,10 @@ export const metadata: Metadata = {
   description: 'Plataforma de gestión de reciclaje',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={inter.className}>
+      <body className={`${inter.className} bg-white text-neutral-900 antialiased min-h-screen`}>
         <Providers>{children}</Providers>
       </body>
     </html>

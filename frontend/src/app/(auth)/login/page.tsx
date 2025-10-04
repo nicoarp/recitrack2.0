@@ -36,7 +36,7 @@ export default function LoginPage() {
       setAuth(response.user, response.accessToken);
       toast.success('¡Bienvenido!');
       router.push('/');
-    } catch (error) {
+    } catch {
       toast.error('Credenciales inválidas');
     } finally {
       setIsLoading(false);

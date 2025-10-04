@@ -3,6 +3,26 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Brand tokens */
+  --primary: #16A34A; /* green-600 */
+  --primary-foreground: #ffffff;
+  --accent: #F59E0B; /* amber-500 */
+  --accent-foreground: #111827;
+
+  /* Semantic tokens */
+  --success: #16A34A;
+  --info: #2563EB; /* blue-600 */
+  --warning: #F59E0B;
+  --error: #EF4444; /* red-500 */
+
+  --border: #E5E7EB; /* gray-200 */
+  --muted: #6B7280;  /* gray-500 */
+  --card: #ffffff;
+  --card-foreground: #111827;
+
+  /* Layout tokens */
+  --radius-lg: 12px;
+  --shadow-soft: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
 }
 
 @theme inline {
@@ -10,14 +30,29 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Expose tokens to Tailwind color system */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 }
 
-@media (prefers-color-scheme: dark) {
+/* ELIMINA O COMENTA ESTA SECCIÓN PARA DESACTIVAR EL MODO OSCURO */
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
-}
+} */
 
 body {
   background: var(--background);

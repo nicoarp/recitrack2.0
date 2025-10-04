@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/auth.store';
 import Link from 'next/link';
-import { Home, Package, Users, LogOut, BarChart } from 'lucide-react';
+import { Home, Package, LogOut, BarChart } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
