@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, UseGuards, Query, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, ForbiddenException } from '@nestjs/common';
 import { CollectionPointsService } from './collection-points.service';
 import { CreateCollectionPointDto } from './dto/create-collection-point.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -52,6 +52,11 @@ export class CollectionPointsController {
     return this.collectionPointsService.findOne(id);
   }
 
+  @Get(':id/qr')
+  async getQRCode(@Param('id') id: string) {
+    return this.collectionPointsService.getQRCode(id);
+  }
+
   @Put(':id')
   async update(
     @Param('id') id: string,
@@ -62,5 +67,16 @@ export class CollectionPointsController {
       throw new ForbiddenException('Solo administradores pueden actualizar puntos de reciclaje');
     }
     return this.collectionPointsService.update(id, updateDto);
+  }
+
+  @Delete(':id')
+  async deactivate(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo administradores pueden desactivar puntos');
+    }
+    return this.collectionPointsService.deactivate(id);
   }
 }

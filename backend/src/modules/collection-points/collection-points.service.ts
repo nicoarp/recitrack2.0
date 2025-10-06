@@ -181,4 +181,48 @@ export class CollectionPointsService {
   private deg2rad(deg: number): number {
     return deg * (Math.PI / 180);
   }
+  // Obtener QR Code del punto
+  async getQRCode(id: string) {
+    const point = await this.prisma.collectionPoint.findUnique({
+      where: { id },
+      include: {
+        qrCode: true,
+      },
+    });
+
+    if (!point) {
+      throw new NotFoundException('Punto de reciclaje no encontrado');
+    }
+
+    // Generar imagen QR
+    const qrImage = await this.qrService.generateQrImage(point.qrCodeId);
+
+    return {
+      id: point.id,
+      name: point.name,
+      address: point.address,
+      qrCodeId: point.qrCodeId,
+      qrImage: qrImage,
+    };
+  }
+
+  // Desactivar punto (soft delete)
+  async deactivate(id: string) {
+    await this.findOne(id); // Verificar que existe
+
+    return this.prisma.collectionPoint.update({
+      where: { id },
+      data: {
+        active: false,
+      },
+      include: {
+        facility: true,
+        _count: {
+          select: {
+            deposits: true,
+          },
+        },
+      },
+    });
+  }
 }

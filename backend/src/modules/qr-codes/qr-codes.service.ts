@@ -146,4 +146,25 @@ export class QrCodesService {
 
     return updatedQr;
   }
+  async getUserQRCodes(userId: string): Promise<any[]> {
+  const deposits = await this.prisma.deposit.findMany({
+    where: { collectorId: userId },
+    include: {
+      qrCode: true,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+
+  return deposits
+    .filter(d => d.qrCode)
+    .map(d => ({
+      id: d.qrCode!.id,
+      code: d.qrCode!.id.slice(-8).toUpperCase(),
+      used: d.qrCode!.status === 'USED' || d.qrCode!.status === 'CLAIMED',
+      depositId: d.id,
+      material: d.materialType,
+      createdAt: d.createdAt,
+    }));
+  }
 }
